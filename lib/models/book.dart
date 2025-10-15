@@ -8,6 +8,7 @@ class Book {
   final int? pageCount;
   final double? averageRating;
   final List<String>? categories;
+  final String? isbn;
 
   Book({
     required this.id,
@@ -19,6 +20,7 @@ class Book {
     this.pageCount,
     this.averageRating,
     this.categories,
+    this.isbn,
   });
 
   factory Book.fromJson(Map<String, dynamic> json) {
@@ -29,11 +31,12 @@ class Book {
       title: volumeInfo['title'] as String? ?? 'Titre inconnu',
       authors: _parseAuthors(volumeInfo['authors']),
       description: _cleanDescription(volumeInfo['description'] as String?),
-      thumbnailUrl: _extractThumbnailUrl(volumeInfo),
+      thumbnailUrl: _extractThumbnailUrl(json['id'], volumeInfo),
       publishedDate: volumeInfo['publishedDate'] as String?,
       pageCount: volumeInfo['pageCount'] as int?,
       averageRating: _parseRating(volumeInfo['averageRating']),
       categories: _parseCategories(volumeInfo['categories']),
+      isbn: _extractIsbn(volumeInfo),
     );
   }
 
@@ -48,6 +51,7 @@ class Book {
       'pageCount': pageCount,
       'averageRating': averageRating,
       'categories': categories,
+      'isbn': isbn,
     };
   }
 
@@ -56,80 +60,62 @@ class Book {
       id: json['id'],
       title: json['title'],
       authors: List<String>.from(json['authors'] ?? []),
-      description: _cleanDescription(json['description']),
+      description: json['description'],
       thumbnailUrl: json['thumbnailUrl'],
       publishedDate: json['publishedDate'],
       pageCount: json['pageCount'],
       averageRating: json['averageRating']?.toDouble(),
       categories: List<String>.from(json['categories'] ?? []),
+      isbn: json['isbn'],
     );
   }
 
-  static String? _extractThumbnailUrl(Map<String, dynamic> volumeInfo) {
-    try {
-      final imageLinks = volumeInfo['imageLinks'] as Map<String, dynamic>?;
-      if (imageLinks == null) {
-        print('❌ Aucun imageLinks trouvé dans volumeInfo');
-        return null;
-      }
-
-      print('🔍 Clés disponibles dans imageLinks: ${imageLinks.keys.toList()}');
-
-      // Ordre de priorité pour les images
-      final candidates = [
-        'thumbnail',
-        'smallThumbnail', 
-        'medium',
-        'large',
-        'extraLarge',
-        'small'
-      ];
-
-      for (final key in candidates) {
-        final url = imageLinks[key];
-        if (url is String && url.isNotEmpty) {
-          print('✅ Image trouvée avec clé "$key": $url');
-          return _processImageUrl(url);
-        }
-      }
-
-      print('❌ Aucune URL d\'image valide trouvée dans les clés: $candidates');
-      return null;
-    } catch (e) {
-      print('❌ Erreur lors de l\'extraction de l\'image: $e');
-      return null;
+  static String? _extractThumbnailUrl(String bookId, Map<String, dynamic>? volumeInfo) {
+    if (volumeInfo == null) return null;
+    
+    // Essayer d'abord Open Library avec ISBN
+    final isbn = _extractIsbn(volumeInfo);
+    if (isbn != null && isbn.isNotEmpty) {
+      final openLibraryUrl = _generateOpenLibraryUrl(isbn);
+      print('🖼️ URL Open Library: $openLibraryUrl');
+      return openLibraryUrl;
     }
+    
+    // Fallback: Google Books avec l'ID
+    final googleBooksUrl = _generateGoogleBooksUrl(bookId);
+    print('🖼️ URL Google Books: $googleBooksUrl');
+    return googleBooksUrl;
   }
 
-  static String _processImageUrl(String url) {
+  static String? _extractIsbn(Map<String, dynamic> volumeInfo) {
     try {
-      // Remplacer http par https
-      url = url.replaceFirst('http://', 'https://');
-      
-      // Nettoyer l'URL des paramètres problématiques
-      final uri = Uri.parse(url);
-      
-      // Garder seulement les paramètres essentiels
-      final Map<String, String> cleanParams = {};
-      if (uri.queryParameters.containsKey('fife')) {
-        cleanParams['fife'] = uri.queryParameters['fife']!;
+      final identifiers = volumeInfo['industryIdentifiers'] as List?;
+      if (identifiers != null) {
+        for (final id in identifiers) {
+          final type = id['type'] as String?;
+          final identifier = id['identifier'] as String?;
+          if (type == 'ISBN_13' && identifier != null) {
+            return identifier;
+          }
+          if (type == 'ISBN_10' && identifier != null) {
+            return identifier;
+          }
+        }
       }
-      
-      // Reconstruire l'URL sans les paramètres problématiques
-      final cleanUri = Uri(
-        scheme: uri.scheme,
-        host: uri.host,
-        path: uri.path,
-        queryParameters: cleanParams.isEmpty ? null : cleanParams,
-      );
-      
-      final processedUrl = cleanUri.toString();
-      print('🔄 URL traitée: $processedUrl');
-      return processedUrl;
     } catch (e) {
-      print('❌ Erreur traitement URL: $e - URL originale: $url');
-      return url;
+      print('❌ Erreur extraction ISBN: $e');
     }
+    return null;
+  }
+
+  static String _generateOpenLibraryUrl(String isbn) {
+    // Open Library - très fiable et accessible
+    return 'https://covers.openlibrary.org/b/isbn/$isbn-M.jpg?default=false';
+  }
+
+  static String _generateGoogleBooksUrl(String bookId) {
+    // Format Google Books amélioré
+    return 'https://books.google.com/books/publisher/content/images/frontcover/$bookId?fife=w400-h600&source=gbs_api';
   }
 
   static List<String>? _parseAuthors(dynamic authors) {
@@ -140,7 +126,6 @@ class Book {
       }
       return [authors.toString()];
     } catch (e) {
-      print('❌ Erreur parsing auteurs: $e');
       return null;
     }
   }
@@ -153,7 +138,6 @@ class Book {
       }
       return [categories.toString()];
     } catch (e) {
-      print('❌ Erreur parsing catégories: $e');
       return null;
     }
   }
@@ -166,33 +150,13 @@ class Book {
       if (rating is String) return double.tryParse(rating);
       return null;
     } catch (e) {
-      print('❌ Erreur parsing rating: $e');
       return null;
     }
   }
 
   static String _cleanDescription(String? raw) {
-    if (raw == null || raw.isEmpty) {
-      return 'Aucune description disponible';
-    }
-    
-    try {
-      // Supprimer les balises HTML
-      String cleaned = raw.replaceAll(RegExp(r'<[^>]*>'), ' ');
-      cleaned = cleaned.replaceAll(RegExp(r'&[^;]+;'), ' ');
-      
-      // Nettoyer les espaces
-      cleaned = cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
-      
-      return cleaned;
-    } catch (e) {
-      print('❌ Erreur nettoyage description: $e');
-      return raw;
-    }
-  }
-
-  @override
-  String toString() {
-    return 'Book{id: $id, title: $title, thumbnail: ${thumbnailUrl != null ? "OUI" : "NON"}';
+    if (raw == null) return 'Aucune description disponible';
+    final withoutTags = raw.replaceAll(RegExp(r'<[^>]*>|&nbsp;'), ' ');
+    return withoutTags.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 }
