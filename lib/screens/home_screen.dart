@@ -4,16 +4,41 @@ import '../models/book.dart';
 import 'book_details_screen.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   List<Book> _books = [];
   bool _isLoading = false;
+  bool _isLoadingMore = false;
   bool _hasSearched = false;
   String _lastQuery = '';
+  int _currentPage = 0;
+  bool _hasMore = true;
+  int _totalItems = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_scrollListener);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent && _hasMore && !_isLoadingMore) {
+      _loadMoreBooks();
+    }
+  }
 
   void _searchBooks() async {
     final query = _searchController.text.trim();
@@ -24,33 +49,59 @@ class _HomeScreenState extends State<HomeScreen> {
       _hasSearched = true;
       _lastQuery = query;
       _books.clear();
+      _currentPage = 0;
+      _hasMore = true;
+      _totalItems = 0;
     });
 
     try {
-      List<Book> books;
-      
-      if (query.split(' ').length <= 3) {
-        books = await GoogleBooksApi.searchExactTitle(query);
-        if (books.isEmpty) {
-          books = await GoogleBooksApi.searchFrenchBooks(query);
-        }
-      } else {
-        books = await GoogleBooksApi.searchFrenchBooks(query);
-      }
+      List<Book> books = await GoogleBooksApi.searchBooks(query, startIndex: 0);
       
       setState(() {
         _books = books;
         _isLoading = false;
+        _hasMore = books.length == GoogleBooksApi.maxResults; // Correction ici
+        _totalItems = books.length;
       });
       
       if (books.isEmpty) {
-        _showSnackBar('Aucun livre pertinent trouvé pour "$query".');
+        _showSnackBar('Aucun livre trouvé pour "$query".');
       } else {
-        _showSnackBar('${books.length} livre(s) trouvé(s)');
+        _showSnackBar('${books.length} livre(s) trouvé(s) - Défilez pour plus de résultats');
       }
     } catch (e) {
       setState(() => _isLoading = false);
       _showSnackBar('Erreur de recherche: $e');
+    }
+  }
+
+  void _loadMoreBooks() async {
+    if (!_hasMore || _isLoadingMore) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final nextPage = _currentPage + 1;
+      final startIndex = nextPage * GoogleBooksApi.maxResults; // Correction ici
+      
+      final moreBooks = await GoogleBooksApi.searchBooks(_lastQuery, startIndex: startIndex);
+      
+      setState(() {
+        _books.addAll(moreBooks);
+        _isLoadingMore = false;
+        _currentPage = nextPage;
+        _hasMore = moreBooks.length == GoogleBooksApi.maxResults; // Correction ici
+        _totalItems = _books.length;
+      });
+
+      if (moreBooks.isEmpty) {
+        _showSnackBar('Tous les résultats ont été chargés');
+      }
+    } catch (e) {
+      setState(() => _isLoadingMore = false);
+      _showSnackBar('Erreur lors du chargement supplémentaire');
     }
   }
 
@@ -59,14 +110,16 @@ class _HomeScreenState extends State<HomeScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.blue[700],
-        duration: Duration(seconds: 3),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
 
+  // ... (le reste du code de _buildSearchInfo, _buildTip, etc. reste identique)
+
   Widget _buildSearchInfo() {
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -75,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
             size: 60,
             color: Colors.blue[200],
           ),
-          SizedBox(height: 15),
+          const SizedBox(height: 15),
           Text(
             'Bookify',
             style: TextStyle(
@@ -84,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.blue[700],
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
             'Votre bibliothèque numérique',
             style: TextStyle(
@@ -92,10 +145,10 @@ class _HomeScreenState extends State<HomeScreen> {
               color: Colors.grey[600],
             ),
           ),
-          SizedBox(height: 25),
+          const SizedBox(height: 25),
           Container(
             width: double.infinity,
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: Colors.blue[50],
               borderRadius: BorderRadius.circular(12),
@@ -108,33 +161,36 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blue[800],
+                    color: Colors.blue[800], 
                   ),
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 _buildTip('🔍 Titre exact', 'Ex: "Le Petit Prince"'),
                 _buildTip('👤 Auteur connu', 'Ex: "Victor Hugo"'),
                 _buildTip('📚 Genre littéraire', 'Ex: "Science fiction"'),
+                _buildTip('🔄 Défilement infini', 'Descendez pour plus de résultats'),
               ],
             ),
           ),
-          SizedBox(height: 15),
+          const SizedBox(height: 15),
           Wrap(
             alignment: WrapAlignment.center,
             spacing: 8,
             runSpacing: 8,
             children: [
               'Harry Potter',
-              'Stephen King',
+              'Stephen King', 
               'Amour',
               'Policier',
               'Jules Verne',
               'Mystère',
+              'Science fiction',
+              'Romance',
             ].map((example) {
               return FilterChip(
                 label: Text(
                   example,
-                  style: TextStyle(fontSize: 12),
+                  style: const TextStyle(fontSize: 12),
                 ),
                 onSelected: (_) {
                   _searchController.text = example;
@@ -153,11 +209,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildTip(String title, String description) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 6),
+          const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -170,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.blue[900],
                   ),
                 ),
-                SizedBox(height: 1),
+                const SizedBox(height: 1),
                 Text(
                   description,
                   style: TextStyle(
@@ -186,35 +242,83 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBookGrid() {
-    return GridView.builder(
-      padding: EdgeInsets.all(12),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: _getCrossAxisCount(context),
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.55, // Ratio plus étroit pour des cartes plus petites
-      ),
-      itemCount: _books.length,
-      itemBuilder: (context, index) {
-        final book = _books[index];
-        return _buildBookGridItem(book);
-      },
+  Widget _buildBookList() {
+    return Column(
+      children: [
+        if (_books.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.blue[50],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '$_totalItems livre(s) trouvé(s)',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                if (_hasMore)
+                  Text(
+                    'Défilez pour plus de résultats ↓',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue[600],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(8),
+            itemCount: _books.length + (_isLoadingMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == _books.length) {
+                return _buildLoadingMoreIndicator();
+              }
+              final book = _books[index];
+              return _buildBookListItem(book);
+            },
+          ),
+        ),
+      ],
     );
   }
 
-  int _getCrossAxisCount(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    if (screenWidth > 1400) return 6;  // Grand desktop
-    if (screenWidth > 1200) return 5;  // Desktop
-    if (screenWidth > 900) return 4;   // Large tablet
-    if (screenWidth > 600) return 3;   // Tablet
-    return 2; // Mobile
+  Widget _buildLoadingMoreIndicator() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: Column(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Chargement de plus de résultats...',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  Widget _buildBookGridItem(Book book) {
+  Widget _buildBookListItem(Book book) {
     return Card(
-      elevation: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      elevation: 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
@@ -226,74 +330,102 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         borderRadius: BorderRadius.circular(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Image du livre - plus petite
-            Container(
-              height: 120, // Hauteur réduite
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-                color: Colors.grey[200],
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 60,
+                height: 90,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: Colors.grey[200],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: _buildBookImage(book),
+                ),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-                child: _buildBookImage(book),
-              ),
-            ),
-            // Contenu texte
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(8),
+              
+              const SizedBox(width: 12),
+              
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Titre
                     Text(
                       book.title,
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: const TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        height: 1.1,
+                        height: 1.2,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 2),
-                    // Auteur
+                    
+                    const SizedBox(height: 4),
+                    
                     if (book.authors != null && book.authors!.isNotEmpty)
                       Text(
-                        book.authors!.first,
+                        book.authors!.join(', '),
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 14,
                           color: Colors.grey[600],
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    // Espace flexible
-                    Spacer(),
-                    // Rating et année
+                    
+                    const SizedBox(height: 6),
+                    
+                    if (book.description != null && book.description!.isNotEmpty)
+                      Text(
+                        _truncateDescription(book.description!),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    
+                    const SizedBox(height: 8),
+                    
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         if (book.averageRating != null)
                           Row(
                             children: [
-                              Icon(Icons.star, size: 10, color: Colors.amber),
-                              SizedBox(width: 1),
+                              const Icon(Icons.star, size: 16, color: Colors.amber),
+                              const SizedBox(width: 4),
                               Text(
                                 book.averageRating!.toStringAsFixed(1),
-                                style: TextStyle(fontSize: 9),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ],
                           ),
+                        
                         if (book.publishedDate != null)
                           Text(
                             _formatYear(book.publishedDate!),
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        
+                        if (book.pageCount != null)
+                          Text(
+                            '${book.pageCount} p.',
+                            style: TextStyle(
+                              fontSize: 12,
                               color: Colors.grey[500],
                             ),
                           ),
@@ -302,8 +434,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -312,14 +444,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBookImage(Book book) {
     if (book.thumbnailUrl == null || book.thumbnailUrl!.isEmpty) {
       return Container(
-        width: double.infinity,
-        height: 120,
         color: Colors.grey[200],
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.menu_book, size: 24, color: Colors.grey[400]),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               'Pas de\ncouverture',
               textAlign: TextAlign.center,
@@ -333,52 +463,48 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return Container(
-      width: double.infinity,
-      height: 120,
-      child: Image.network(
-        book.thumbnailUrl!,
-        fit: BoxFit.cover,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            color: Colors.grey[200],
-            child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  value: loadingProgress.expectedTotalBytes != null
-                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                      : null,
+    return Image.network(
+      book.thumbnailUrl!,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: Colors.grey[200],
+          child: const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          color: Colors.grey[200],
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image, size: 24, color: Colors.grey[400]),
+              const SizedBox(height: 4),
+              Text(
+                'Erreur\nimage',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 8,
+                  color: Colors.grey[500],
                 ),
               ),
-            ),
-          );
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey[200],
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.broken_image, size: 24, color: Colors.grey[400]),
-                SizedBox(height: 4),
-                Text(
-                  'Image\nindisponible',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 8,
-                    color: Colors.grey[500],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  String _truncateDescription(String description) {
+    if (description.length <= 100) return description;
+    return '${description.substring(0, 100)}...';
   }
 
   String _formatYear(String date) {
@@ -398,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Bookify',
           style: TextStyle(
             fontWeight: FontWeight.bold,
@@ -412,9 +538,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // Barre de recherche compacte
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             color: Colors.white,
             child: Row(
               children: [
@@ -422,8 +547,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Rechercher un livre...',
-                      hintStyle: TextStyle(fontSize: 14),
+                      hintText: 'Rechercher un livre, auteur ou genre...',
+                      hintStyle: const TextStyle(fontSize: 14),
                       prefixIcon: Icon(Icons.search, color: Colors.blue[700], size: 20),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
@@ -431,12 +556,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       filled: true,
                       fillColor: Colors.grey[100],
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
                     onSubmitted: (_) => _searchBooks(),
                   ),
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Container(
                   width: 40,
                   height: 40,
@@ -445,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: IconButton(
-                    icon: Icon(Icons.search, color: Colors.white, size: 18),
+                    icon: const Icon(Icons.search, color: Colors.white, size: 18),
                     onPressed: _searchBooks,
                     padding: EdgeInsets.zero,
                   ),
@@ -454,7 +579,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           
-          // Contenu principal
           Expanded(
             child: _isLoading
                 ? Center(
@@ -466,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           height: 25,
                           child: CircularProgressIndicator(color: Colors.blue[700]),
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Text(
                           'Recherche en cours...',
                           style: TextStyle(
@@ -474,7 +598,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: Colors.grey[600],
                           ),
                         ),
-                        SizedBox(height: 6),
+                        const SizedBox(height: 6),
                         Text(
                           '"$_lastQuery"',
                           style: TextStyle(
@@ -497,7 +621,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   size: 60,
                                   color: Colors.grey[300],
                                 ),
-                                SizedBox(height: 12),
+                                const SizedBox(height: 12),
                                 Text(
                                   'Aucun résultat',
                                   style: TextStyle(
@@ -506,7 +630,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(height: 6),
+                                const SizedBox(height: 6),
                                 Text(
                                   'Pour "$_lastQuery"',
                                   style: TextStyle(
@@ -514,7 +638,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     color: Colors.grey[400],
                                   ),
                                 ),
-                                SizedBox(height: 16),
+                                const SizedBox(height: 16),
                                 ElevatedButton(
                                   onPressed: () {
                                     _searchController.clear();
@@ -528,9 +652,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16),
                                     ),
-                                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                                   ),
-                                  child: Text(
+                                  child: const Text(
                                     'Nouvelle recherche',
                                     style: TextStyle(fontSize: 12),
                                   ),
@@ -538,7 +662,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           )
-                        : _buildBookGrid()
+                        : _buildBookList()
                     : SingleChildScrollView(
                         child: _buildSearchInfo(),
                       ),

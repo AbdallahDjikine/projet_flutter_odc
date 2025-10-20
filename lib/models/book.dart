@@ -9,6 +9,7 @@ class Book {
   final double? averageRating;
   final List<String>? categories;
   final String? isbn;
+  final String? previewLink;
 
   Book({
     required this.id,
@@ -21,23 +22,53 @@ class Book {
     this.averageRating,
     this.categories,
     this.isbn,
+    this.previewLink,
   });
 
   factory Book.fromJson(Map<String, dynamic> json) {
     final volumeInfo = json['volumeInfo'] as Map<String, dynamic>? ?? {};
     
+    // Extraction de l'ISBN pour Open Library
+    String? isbn;
+    final identifiers = volumeInfo['industryIdentifiers'] as List?;
+    if (identifiers != null) {
+      for (final id in identifiers) {
+        final type = id['type'] as String?;
+        final identifier = id['identifier'] as String?;
+        if ((type == 'ISBN_13' || type == 'ISBN_10') && identifier != null) {
+          isbn = identifier;
+          break;
+        }
+      }
+    }
+
     return Book(
       id: json['id'] as String? ?? 'unknown',
       title: volumeInfo['title'] as String? ?? 'Titre inconnu',
       authors: _parseAuthors(volumeInfo['authors']),
       description: _cleanDescription(volumeInfo['description'] as String?),
-      thumbnailUrl: _extractThumbnailUrl(json['id'], volumeInfo),
+      thumbnailUrl: _generateReliableImageUrl(isbn, json['id']),
       publishedDate: volumeInfo['publishedDate'] as String?,
       pageCount: volumeInfo['pageCount'] as int?,
       averageRating: _parseRating(volumeInfo['averageRating']),
       categories: _parseCategories(volumeInfo['categories']),
-      isbn: _extractIsbn(volumeInfo),
+      isbn: isbn,
+      previewLink: volumeInfo['previewLink'] as String?,
     );
+  }
+
+  static String? _generateReliableImageUrl(String? isbn, String bookId) {
+    // TOUJOURS utiliser Open Library en priorité
+    if (isbn != null && isbn.isNotEmpty) {
+      final openLibraryUrl = 'https://covers.openlibrary.org/b/isbn/$isbn-M.jpg';
+      print('🖼️ URL Open Library: $openLibraryUrl');
+      return openLibraryUrl;
+    }
+
+    // Si pas d'ISBN, utiliser Google Books mais avec un format simple
+    final googleBooksUrl = 'https://books.google.com/books/publisher/content/images/frontcover/$bookId?fife=w400-h600';
+    print('🖼️ URL Google Books (fallback): $googleBooksUrl');
+    return googleBooksUrl;
   }
 
   Map<String, dynamic> toJson() {
@@ -52,6 +83,7 @@ class Book {
       'averageRating': averageRating,
       'categories': categories,
       'isbn': isbn,
+      'previewLink': previewLink,
     };
   }
 
@@ -67,55 +99,8 @@ class Book {
       averageRating: json['averageRating']?.toDouble(),
       categories: List<String>.from(json['categories'] ?? []),
       isbn: json['isbn'],
+      previewLink: json['previewLink'],
     );
-  }
-
-  static String? _extractThumbnailUrl(String bookId, Map<String, dynamic>? volumeInfo) {
-    if (volumeInfo == null) return null;
-    
-    // Essayer d'abord Open Library avec ISBN
-    final isbn = _extractIsbn(volumeInfo);
-    if (isbn != null && isbn.isNotEmpty) {
-      final openLibraryUrl = _generateOpenLibraryUrl(isbn);
-      print('🖼️ URL Open Library: $openLibraryUrl');
-      return openLibraryUrl;
-    }
-    
-    // Fallback: Google Books avec l'ID
-    final googleBooksUrl = _generateGoogleBooksUrl(bookId);
-    print('🖼️ URL Google Books: $googleBooksUrl');
-    return googleBooksUrl;
-  }
-
-  static String? _extractIsbn(Map<String, dynamic> volumeInfo) {
-    try {
-      final identifiers = volumeInfo['industryIdentifiers'] as List?;
-      if (identifiers != null) {
-        for (final id in identifiers) {
-          final type = id['type'] as String?;
-          final identifier = id['identifier'] as String?;
-          if (type == 'ISBN_13' && identifier != null) {
-            return identifier;
-          }
-          if (type == 'ISBN_10' && identifier != null) {
-            return identifier;
-          }
-        }
-      }
-    } catch (e) {
-      print('❌ Erreur extraction ISBN: $e');
-    }
-    return null;
-  }
-
-  static String _generateOpenLibraryUrl(String isbn) {
-    // Open Library - très fiable et accessible
-    return 'https://covers.openlibrary.org/b/isbn/$isbn-M.jpg?default=false';
-  }
-
-  static String _generateGoogleBooksUrl(String bookId) {
-    // Format Google Books amélioré
-    return 'https://books.google.com/books/publisher/content/images/frontcover/$bookId?fife=w400-h600&source=gbs_api';
   }
 
   static List<String>? _parseAuthors(dynamic authors) {

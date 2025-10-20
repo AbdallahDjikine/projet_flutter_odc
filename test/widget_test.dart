@@ -14,7 +14,7 @@ void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
   // Use the real app class from the project
-  await tester.pumpWidget(BookifyApp());
+  await tester.pumpWidget(const BookifyApp());
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);

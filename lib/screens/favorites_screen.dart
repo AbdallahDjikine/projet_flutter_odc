@@ -6,6 +6,8 @@ import 'book_details_screen.dart';
 import '../widgets/book_card.dart';
 
 class FavoritesScreen extends StatefulWidget {
+  const FavoritesScreen({super.key});
+
   @override
   _FavoritesScreenState createState() => _FavoritesScreenState();
 }
@@ -43,20 +45,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Mes Favoris'),
+        title: const Text('Mes Favoris'),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh),
             onPressed: _refreshFavorites,
           ),
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : _favoriteBooks.isEmpty
-              ? Center(
+              ? const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

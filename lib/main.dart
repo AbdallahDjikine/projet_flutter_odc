@@ -3,10 +3,12 @@ import 'screens/home_screen.dart';
 import 'screens/favorites_screen.dart';
 
 void main() {
-  runApp(BookifyApp());
+  runApp(const BookifyApp());
 }
 
 class BookifyApp extends StatelessWidget {
+  const BookifyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -21,13 +23,15 @@ class BookifyApp extends StatelessWidget {
           elevation: 2,
         ),
       ),
-      home: MainNavigation(),
+      home: const MainNavigation(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
 class MainNavigation extends StatefulWidget {
+  const MainNavigation({super.key});
+
   @override
   _MainNavigationState createState() => _MainNavigationState();
 }
@@ -36,8 +40,8 @@ class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    HomeScreen(),
-    FavoritesScreen(),
+    const HomeScreen(),
+    const FavoritesScreen(),
   ];
 
   final List<String> _appBarTitles = [
@@ -52,7 +56,7 @@ class _MainNavigationState extends State<MainNavigation> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
-        items: [
+        items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.search),
             label: 'Recherche',

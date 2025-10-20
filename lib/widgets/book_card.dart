@@ -7,21 +7,21 @@ class BookCard extends StatelessWidget {
   final VoidCallback onTap;
 
   const BookCard({
-    Key? key,
+    super.key,
     required this.book,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 2,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -35,21 +35,21 @@ class BookCard extends StatelessWidget {
                 ),
                 child: _buildBookImage(),
               ),
-              SizedBox(width: 16),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       book.title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     if (book.authors != null && book.authors!.isNotEmpty)
                       Text(
                         'Par ${book.authors!.join(', ')}',
@@ -60,26 +60,26 @@ class BookCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     if (book.publishedDate != null)
                       Text(
                         'Publié: ${_formatPublishedDate(book.publishedDate!)}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     if (book.averageRating != null)
                       Row(
                         children: [
-                          Icon(Icons.star, color: Colors.amber, size: 16),
-                          SizedBox(width: 4),
+                          const Icon(Icons.star, color: Colors.amber, size: 16),
+                          const SizedBox(width: 4),
                           Text(
                             '${book.averageRating!.toStringAsFixed(1)}/5',
-                            style: TextStyle(fontSize: 12),
+                            style: const TextStyle(fontSize: 12),
                           ),
                           if (book.isbn != null) ...[
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               '• ISBN: ${book.isbn}',
-                              style: TextStyle(fontSize: 10, color: Colors.grey),
+                              style: const TextStyle(fontSize: 10, color: Colors.grey),
                             ),
                           ],
                         ],
@@ -119,7 +119,7 @@ class BookCard extends StatelessWidget {
   Widget _buildLoadingPlaceholder() {
     return Container(
       color: Colors.grey[200],
-      child: Center(
+      child: const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -141,7 +141,7 @@ class BookCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.book, color: Colors.grey[500], size: 30),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             'Image\nindisponible',
             textAlign: TextAlign.center,
@@ -162,7 +162,7 @@ class BookCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.menu_book, color: Colors.grey[500], size: 30),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             'Pas de\ncouverture',
             textAlign: TextAlign.center,
